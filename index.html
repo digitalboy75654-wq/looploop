@@ -203,7 +203,7 @@
 
         <div id="deposits" class="section">
             <h2>Deposits</h2>
-            <table><thead><tr><th>User</th><th>Amt</th><th>Method</th><th>TRX</th><th>Action</th></tr></thead><tbody id="tb-dep"></tbody></table>
+            <table><thead><tr><th>User</th><th>Amt</th><th>Method</th><th>TRX</th><th>Sender Acc</th><th>Action</th></tr></thead><tbody id="tb-dep"></tbody></table>
         </div>
 
         <div id="withdrawals" class="section">
@@ -572,7 +572,7 @@ onValue(ref(db, 'users'), s => {
     });
 });
 
-        // --- 2. DEPOSITS LOADER ---
+  // --- 2. DEPOSITS LOADER (ADMIN UPDATE ONLY) ---
 onValue(ref(db, 'deposit_requests'), (s) => {
     const tb = document.getElementById('tb-dep');
     tb.innerHTML = "";
@@ -581,53 +581,49 @@ onValue(ref(db, 'deposit_requests'), (s) => {
 
     if (s.exists()) {
         const deposits = s.val();
+        let allEntries = Object.entries(deposits).reverse();
 
-        get(ref(db, 'users')).then((uSnap) => {
-            const allUsers = uSnap.val() || {};
-
-            Object.entries(deposits).reverse().forEach(([k, v]) => {
-                if (v.status === 'Pending') p++;
-                if (v.status === 'Approved') r += Number(v.amount);
-
-                const userData = allUsers[v.userId] || {};
-                // 🌟 SMART NAME FALLBACK
-                const username = userData.username || userData.fullName || userData.name || "User_" + v.userId.substring(0, 4);
-
-                tb.innerHTML += `
-                    <tr>
-                        <td style="line-height:1.2; cursor:pointer;" onclick="viewUserHistory('${v.userId}', '${username}')" title="Click to view full history">
-                            <b style="color:var(--primary); text-decoration:underline;">${username}</b><br>
-                            <small style="font-size:9px; opacity:0.6">UID: ${v.userId.substring(0, 6)}</small>
-                        </td>
-                        <td style="color:var(--success); font-weight:bold">Rs. ${v.amount}</td>
-                        <td>
-                            <span style="text-transform: capitalize; font-size:12px;">
-                                <i class="fas fa-wallet" style="font-size:10px; color:var(--gold)"></i> ${v.method}
-                            </span>
-                        </td>
-                        <td style="font-family: monospace; letter-spacing:1px; color:var(--neon-blue)">${v.trxID}</td>
-                        <td>
-                            ${v.status === 'Pending' ? `
-                                <div style="display:flex; gap:5px;">
-                                    <button class="btn btn-ok" onclick="hDep('${k}','Approved','${v.userId}',${v.amount})" title="Approve"><i class="fas fa-check"></i></button>
-                                    <button class="btn btn-no" onclick="hDep('${k}','Rejected')" title="Reject"><i class="fas fa-times"></i></button>
-                                </div>
-                            ` : `
-                                <span class="badge" style="background:${v.status === 'Approved' ? 'rgba(0,242,195,0.2)' : 'rgba(253,93,147,0.2)'}; 
-                                color:${v.status === 'Approved' ? 'var(--success)' : 'var(--danger)'}; border:1px solid; font-size:10px; padding:2px 8px">
-                                    ${v.status}
-                                </span>
-                            `}
-                        </td>
-                    </tr>`;
-            });
-
-            document.getElementById('s-rev').innerText = "Rs. " + r;
-            const dbg = document.getElementById('dep-badge');
-            dbg.innerText = p;
-            dbg.style.display = p > 0 ? 'inline' : 'none';
-            updatePend();
+        // Dashboard calculation (Sare records se)
+        allEntries.forEach(([k, v]) => {
+            if (v.status === 'Pending') p++;
+            if (v.status === 'Approved') r += Number(v.amount);
         });
+
+        // Sirf Latest 10 records dikhayen taake page heavy na ho
+        let displayEntries = allEntries.slice(0, 10);
+
+        displayEntries.forEach(([k, v]) => {
+            const userData = usersData[v.userId] || {};
+            const username = userData.username || userData.fullName || "User_" + v.userId.substring(0, 4);
+
+            // FIX: Yahan 'v.sender' add kiya hai kyunki aapka deposit page 'sender' bhej raha hai
+            const senderAcc = v.sender || v.senderAccount || v.senderNumber || "N/A";
+
+            tb.innerHTML += `
+                <tr>
+                    <td><b>${username}</b><br><small>UID: ${v.userId.substring(0,6)}</small></td>
+                    <td style="color:var(--success); font-weight:bold">Rs. ${v.amount}</td>
+                    <td>${v.method}</td>
+                    <td style="font-family: monospace;">${v.trxID}</td>
+                    
+                    <td style="color:var(--gold); font-weight:bold;">${senderAcc}</td>
+
+                    <td>
+                        ${v.status === 'Pending' ? `
+                            <div style="display:flex; gap:5px;">
+                                <button class="btn btn-ok" onclick="hDep('${k}','Approved','${v.userId}',${v.amount})"><i class="fas fa-check"></i></button>
+                                <button class="btn btn-no" onclick="hDep('${k}','Rejected')"><i class="fas fa-times"></i></button>
+                            </div>
+                        ` : `<span class="badge">${v.status}</span>`}
+                    </td>
+                </tr>`;
+        });
+
+        document.getElementById('s-rev').innerText = "Rs. " + r;
+        const dbg = document.getElementById('dep-badge');
+        dbg.innerText = p;
+        dbg.style.display = p > 0 ? 'inline' : 'none';
+        updatePend();
     }
 });
 
