@@ -572,7 +572,7 @@ onValue(ref(db, 'users'), s => {
     });
 });
 
-  // --- 2. DEPOSITS LOADER (LAST 30 DAYS ONLY) ---
+ // --- 2. DEPOSITS LOADER (WITHDRAWAL STYLE & 1 MONTH FILTER) ---
 onValue(ref(db, 'deposit_requests'), (s) => {
     const tb = document.getElementById('tb-dep');
     tb.innerHTML = "";
@@ -581,46 +581,47 @@ onValue(ref(db, 'deposit_requests'), (s) => {
 
     if (s.exists()) {
         const deposits = s.val();
-        const oneMonthAgo = Date.now() - (30 * 24 * 60 * 60 * 1000); // 30 Din ka waqt milliseconds mein
+        const oneMonthAgo = Date.now() - (30 * 24 * 60 * 60 * 1000); // 30 Din ka filter
 
         get(ref(db, 'users')).then((uSnap) => {
             const allUsers = uSnap.val() || {};
             
-            // Data ko reverse karein (Naye upar)
-            let allEntries = Object.entries(deposits).reverse();
-
-            allEntries.forEach(([k, v]) => {
-                // Sirf wahi data dikhayein jo 1 mahine ke andar ka ho
+            // Latest records upar lane ke liye reverse
+            Object.entries(deposits).reverse().forEach(([k, v]) => {
+                
+                // Sirf 1 Month ka data dikhane ke liye condition
                 if (v.timestamp >= oneMonthAgo) {
                     
                     if (v.status === 'Pending') p++;
                     if (v.status === 'Approved') r += Number(v.amount);
 
                     const userData = allUsers[v.userId] || {};
-                    const displayName = userData.username || userData.fullName || userData.name || "User_" + v.userId.substring(0, 4);
+                    const username = userData.username || userData.fullName || userData.name || "User_" + v.userId.substring(0, 4);
+                    
+                    // Aapke app se data 'sender' ke naam se aa raha hai
                     const senderAcc = v.sender || v.senderAccount || "N/A";
 
-                    const statusColor = v.status === 'Pending' ? '#f1c40f' : '#00f2c3';
-                    const statusBg = v.status === 'Pending' ? 'rgba(241, 196, 15, 0.15)' : 'rgba(0, 242, 195, 0.15)';
-
                     tb.innerHTML += `
-                        <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-                            <td style="padding: 12px;">
-                                <b style="color:var(--primary); font-size:14px;">${displayName}</b><br>
-                                <small style="opacity:0.6; font-size:10px;">${new Date(v.timestamp).toLocaleDateString()}</small>
+                        <tr>
+                            <td style="line-height:1.2">
+                                <b style="color:var(--primary)">${username}</b><br>
+                                <small style="font-size:9px; opacity:0.6">UID: ${v.userId.substring(0, 6)}</small>
                             </td>
-                            <td style="color:var(--success); font-weight:bold;">Rs. ${v.amount}</td>
-                            <td style="text-transform:uppercase; font-size:11px; color:#aaa;">${v.method}</td>
-                            <td style="font-family:monospace; color:var(--neon-blue); font-size:11px;">${v.trxID}</td>
-                            <td style="color:var(--gold); font-weight:bold; font-size:12px;">${senderAcc}</td>
+                            <td style="color:var(--success); font-weight:bold">Rs. ${v.amount}</td>
+                            <td style="font-size:12px">
+                                <i class="fas fa-wallet" style="font-size:10px; color:var(--gold)"></i> ${v.method}<br>
+                                <small style="color:#aaa">${new Date(v.timestamp).toLocaleDateString()}</small>
+                            </td>
+                            <td style="font-family: monospace; font-size:11px; color:var(--neon-blue)">${v.trxID}</td>
+                            <td style="color:var(--gold); font-size:12px; font-weight:bold;">${senderAcc}</td>
                             <td>
                                 ${v.status === 'Pending' ? `
                                     <div style="display:flex; gap:5px;">
-                                        <button class="btn btn-ok" onclick="hDep('${k}','Approved','${v.userId}',${v.amount})" style="width:30px; height:30px; padding:0;"><i class="fas fa-check"></i></button>
-                                        <button class="btn btn-no" onclick="hDep('${k}','Rejected')" style="width:30px; height:30px; padding:0;"><i class="fas fa-times"></i></button>
+                                        <button class="btn btn-ok" onclick="hDep('${k}','Approved','${v.userId}',${v.amount})" title="Approve"><i class="fas fa-check"></i></button>
+                                        <button class="btn btn-no" onclick="hDep('${k}','Rejected')" title="Reject"><i class="fas fa-times"></i></button>
                                     </div>
                                 ` : `
-                                    <span class="badge" style="background:${statusBg}; color:${statusColor}; border:1px solid ${statusColor}; padding:3px 6px; border-radius:4px; font-size:9px;">
+                                    <span class="badge" style="background:${v.status === 'Approved' ? 'var(--success)' : v.status === 'Rejected' ? 'var(--danger)' : 'orange'}; font-size:10px; padding:3px 8px">
                                         ${v.status}
                                     </span>
                                 `}
@@ -636,7 +637,7 @@ onValue(ref(db, 'deposit_requests'), (s) => {
             updatePend();
         });
     } else {
-        tb.innerHTML = "<tr><td colspan='6' style='text-align:center; padding:20px; opacity:0.5;'>No Deposits for this Month</td></tr>";
+        tb.innerHTML = "<tr><td colspan='6' style='text-align:center; padding:20px; opacity:0.5;'>No Deposits Found</td></tr>";
     }
 });
 
