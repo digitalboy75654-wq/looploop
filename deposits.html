@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deposit Management - Admin</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #1e1e2f; 
+            --card: #27293d; 
+            --text: #ffffff; 
+            --primary: #e14eca;
+            --success: #00f2c3;
+            --danger: #fd5d93;
+            --gold: #f1c40f;
+            --blue: #3498db;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Poppins', sans-serif; }
+        body { background: var(--bg); color: var(--text); padding: 20px; overflow-x: hidden; }
+
+        /* TOP BAR */
+        .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: var(--card); padding: 15px 20px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); border-left: 5px solid var(--success); }
+        .btn-back { background: transparent; color: var(--text); border: 1px solid var(--primary); padding: 8px 15px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; transition: 0.3s; }
+        .btn-back:hover { background: var(--primary); }
+        .header-title { font-size: 20px; color: var(--success); font-weight: bold; display: flex; align-items: center; gap: 10px; }
+
+        /* FILTER BUTTONS */
+        .filter-container { margin-bottom: 20px; display: flex; gap: 10px; overflow-x: auto; scrollbar-width: none; }
+        .btn-filter { background: var(--card); color: white; border: 1px solid #444; padding: 8px 15px; border-radius: 20px; cursor: pointer; transition: 0.3s; font-size: 13px; font-weight: bold; }
+        .btn-filter.active { background: var(--success); color: black; border-color: var(--success); }
+
+        /* TABLE STYLES */
+        .table-wrapper { background: var(--card); border-radius: 15px; overflow-x: auto; box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
+        table { width: 100%; border-collapse: collapse; text-align: left; }
+        th { background: rgba(0,0,0,0.3); color: var(--gold); padding: 15px; font-size: 14px; }
+        td { padding: 15px; border-bottom: 1px solid #333; font-size: 14px; vertical-align: middle; }
+        tr:hover { background: rgba(255,255,255,0.02); }
+
+        /* BADGES */
+        .badge { font-size: 11px; padding: 4px 8px; border-radius: 6px; font-weight: bold; text-transform: uppercase; }
+        .b-pend { background: rgba(241, 196, 15, 0.2); color: var(--gold); border: 1px solid var(--gold); }
+        .b-appr { background: rgba(0, 242, 195, 0.2); color: var(--success); border: 1px solid var(--success); }
+        .b-rej { background: rgba(253, 93, 147, 0.2); color: var(--danger); border: 1px solid var(--danger); }
+
+        /* ACTION BUTTONS */
+        .btn-action { padding: 6px 12px; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: bold; margin-right: 5px; margin-bottom: 5px; transition: 0.2s; color: white; display: inline-flex; align-items: center; gap: 5px; }
+        .btn-action:hover { transform: translateY(-2px); }
+        .btn-approve { background: var(--success); color: black; }
+        .btn-reject { background: var(--danger); }
+        .btn-proof { background: var(--blue); }
+
+        /* IMAGE MODAL */
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 1000; justify-content: center; align-items: center; padding: 20px; }
+        .modal img { max-width: 100%; max-height: 80vh; border-radius: 10px; border: 3px solid var(--primary); }
+        .close-modal { position: absolute; top: 20px; right: 30px; background: var(--danger); border: none; color: white; font-size: 20px; cursor: pointer; width: 40px; height: 40px; border-radius: 50%; }
+
+        .empty-state { text-align: center; padding: 40px; opacity: 0.5; }
+    </style>
+</head>
+<body>
+
+    <div class="top-bar">
+        <button class="btn-back" onclick="window.location.href='index.html'">
+            <i class="fas fa-arrow-left"></i> Back to Admin
+        </button>
+        <div class="header-title"><i class="fas fa-hand-holding-usd"></i> Deposits Manager</div>
+    </div>
+
+    <div class="filter-container">
+        <button class="btn-filter active" onclick="applyFilter('All', this)">All Deposits</button>
+        <button class="btn-filter" onclick="applyFilter('Pending', this)">Pending</button>
+        <button class="btn-filter" onclick="applyFilter('Approved', this)">Approved</button>
+        <button class="btn-filter" onclick="applyFilter('Rejected', this)">Rejected</button>
+    </div>
+
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Date & TRX</th>
+                    <th>User Details</th>
+                    <th>Payment Details</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="tb-deposits">
+                <tr><td colspan="5" class="empty-state"><i class="fas fa-spinner fa-spin"></i> Loading...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div id="proofModal" class="modal">
+        <button class="close-modal" onclick="closeM()"><i class="fas fa-times"></i></button>
+        <img id="proof-img" src="" alt="Payment Proof">
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.0.0/firebase-app.js";
+        import { getDatabase, ref, onValue, get, update, remove, push } from "https://www.gstatic.com/firebasejs/9.0.0/firebase-database.js";
+
+        const firebaseConfig = { 
+            apiKey: "AIzaSyDKhHlL52F16AP0d7j5XK9lZduEFBLKBfY", 
+            authDomain: "ludo-d46ab.firebaseapp.com", 
+            databaseURL: "https://ludo-d46ab-default-rtdb.firebaseio.com", 
+            projectId: "ludo-d46ab" 
+        };
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        let allDeposits = [];
+        let allUsersData = {}; 
+        let currentFilter = 'All';
+        const TIME_30_DAYS = 30 * 24 * 60 * 60 * 1000; 
+
+        // 1. Fetch Users Data (For Real Names)
+        onValue(ref(db, 'users'), (snap) => {
+            if (snap.exists()) {
+                allUsersData = snap.val();
+                renderTable(); 
+            }
+        });
+
+        // 2. Fetch Deposits & Auto-Delete 30-day old records
+        onValue(ref(db, 'deposit_requests'), (snapshot) => {
+            allDeposits = [];
+            const now = Date.now();
+
+            if (snapshot.exists()) {
+                snapshot.forEach(child => {
+                    const data = child.val();
+                    const key = child.key;
+                    const timestamp = data.timestamp || 0;
+
+                    if (now - timestamp > TIME_30_DAYS) {
+                        remove(ref(db, `deposit_requests/${key}`));
+                    } else {
+                        allDeposits.push({ key: key, ...data });
+                    }
+                });
+
+                allDeposits.sort((a, b) => b.timestamp - a.timestamp);
+            }
+            
+            renderTable();
+        });
+
+        // 3. Filter Buttons Logic
+        window.applyFilter = (filterType, btnElem) => {
+            currentFilter = filterType;
+            document.querySelectorAll('.btn-filter').forEach(btn => btn.classList.remove('active'));
+            btnElem.classList.add('active');
+            renderTable();
+        };
+
+        // 4. Render Table Data
+        function renderTable() {
+            const tb = document.getElementById('tb-deposits');
+            tb.innerHTML = "";
+
+            let filtered = allDeposits;
+            if (currentFilter !== 'All') {
+                filtered = allDeposits.filter(d => d.status === currentFilter);
+            }
+
+            if (filtered.length === 0) {
+                tb.innerHTML = `<tr><td colspan="5" class="empty-state"><i class="fas fa-folder-open"></i> No deposits found.</td></tr>`;
+                return;
+            }
+
+            filtered.forEach(d => {
+                const dateStr = d.timestamp ? new Date(d.timestamp).toLocaleString() : 'Unknown Date';
+                
+                // Asli Naam nikalna (Users folder se)
+                const uInfo = allUsersData[d.userId] || {};
+                const realName = uInfo.username || uInfo.fullName || uInfo.name || d.userName || d.name || 'Unknown User';
+                
+                // ✨ FIX: User ke form se exact data pakarna (sender aur trxID)
+                const senderDetail = d.sender || d.senderAccount || d.accountNumber || 'N/A';
+                const trx = d.trxID || d.trxId || d.transactionId || 'N/A';
+                const method = d.method || d.paymentMethod || 'Transfer';
+
+                // Status Badge
+                let badgeClass = 'b-pend';
+                if (d.status === 'Approved') badgeClass = 'b-appr';
+                if (d.status === 'Rejected') badgeClass = 'b-rej';
+
+                // Approve / Reject Buttons (Sirf Pending ke liye)
+                let actionHTML = '';
+                if (d.status === 'Pending') {
+                    actionHTML = `
+                        <button class="btn-action btn-approve" onclick="approveDep('${d.key}', '${d.userId}', ${d.amount})">
+                            <i class="fas fa-check"></i> Approve
+                        </button>
+                        <button class="btn-action btn-reject" onclick="rejectDep('${d.key}', '${d.userId}')">
+                            <i class="fas fa-times"></i> Reject
+                        </button>
+                    `;
+                }
+                
+                // Screenshot Button
+                if (d.image || d.screenshot) {
+                    const imgUrl = d.image || d.screenshot;
+                    actionHTML += `<button class="btn-action btn-proof" onclick="openProof('${imgUrl}')"><i class="fas fa-image"></i> Proof</button>`;
+                }
+
+                tb.innerHTML += `
+                    <tr>
+                        <td>
+                            <small style="color:#aaa;">${dateStr}</small><br>
+                            <small style="color:#00f2c3;"><b>TRX:</b> ${trx}</small>
+                        </td>
+                        <td>
+                            <b style="color:var(--primary); font-size:15px; text-transform:capitalize;">${realName}</b><br>
+                            <small style="opacity:0.6;">UID: ${d.userId ? d.userId.substring(0,8) + '...' : 'N/A'}</small>
+                        </td>
+                        <td>
+                            <b style="color:var(--gold); font-size:16px;">₹${d.amount}</b> <small style="color:#aaa;">(${method})</small><br>
+                            <small style="color:#fff;"><b>Sender:</b> ${senderDetail}</small>
+                        </td>
+                        <td><span class="badge ${badgeClass}">${d.status}</span></td>
+                        <td>${actionHTML}</td>
+                    </tr>
+                `;
+            });
+        }
+
+        // 5. APPROVE DEPOSIT LOGIC
+        window.approveDep = async (key, uid, amount) => {
+            if (!confirm(`Are you sure you want to APPROVE ₹${amount} for this user?`)) return;
+
+            try {
+                const userRef = ref(db, `users/${uid}`);
+                const snap = await get(userRef);
+                
+                if (snap.exists()) {
+                    let currentBal = Number(snap.val().balance || 0);
+                    let newBal = currentBal + Number(amount);
+
+                    await update(userRef, { balance: newBal });
+                    await update(ref(db, `deposit_requests/${key}`), { status: 'Approved', actionTime: Date.now() });
+
+                    await push(ref(db, `users/${uid}/notifications`), {
+                        message: `Your deposit of ₹${amount} has been Approved!`,
+                        timestamp: Date.now(),
+                        read: false,
+                        type: "deposit_approved"
+                    });
+
+                    alert(`Success! ₹${amount} added to user balance.`);
+                } else {
+                    alert("Error: User not found in database!");
+                }
+            } catch (err) {
+                alert("Error: " + err.message);
+            }
+        };
+
+        // 6. REJECT DEPOSIT LOGIC
+        window.rejectDep = async (key, uid) => {
+            if (!confirm("Are you sure you want to REJECT this deposit?")) return;
+
+            try {
+                await update(ref(db, `deposit_requests/${key}`), { status: 'Rejected', actionTime: Date.now() });
+                
+                await push(ref(db, `users/${uid}/notifications`), {
+                    message: `Your deposit request was Rejected. Please contact admin on live chat.`,
+                    timestamp: Date.now(),
+                    read: false,
+                    type: "deposit_rejected"
+                });
+                
+                alert("Deposit Rejected.");
+            } catch (err) {
+                alert("Error: " + err.message);
+            }
+        };
+
+        // 7. OPEN/CLOSE IMAGE MODAL
+        window.openProof = (url) => {
+            document.getElementById('proof-img').src = url;
+            document.getElementById('proofModal').style.display = 'flex';
+        };
+
+        window.closeM = () => {
+            document.getElementById('proofModal').style.display = 'none';
+        };
+
+    </script>
+</body>
+</html>
